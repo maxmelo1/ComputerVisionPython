@@ -1,2 +1,3 @@
-# ComputerVisionPython
-Computer Vision example algorithms
+# Computer Vision using Python
+
+Computer Vision example algorithms both with Pytorch and Tensorflow
