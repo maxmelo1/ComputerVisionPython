@@ -23,7 +23,7 @@ IMAGE_DIR = 'cell_images/'
 IMAGE_SIZE = 224
 
 LEARNING_RATE = 1e-3
-BS = 16
+BS = 64
 NUM_WORKERS = 2
 PIN_MEMORY = True
 NUM_EPOCHS = 10
@@ -165,13 +165,21 @@ val_loader = DataLoader(
 )
 
 model = Model(n_classes=1)
-# print( summary(model, (3, 224, 224)) )
 # print(model)
 
 _,x,y = next(iter(train_loader))
 model.to(DEVICE)
 x = x.to(DEVICE)
 
+print( summary(model, (3, 224, 224)) )
+
+ct = 0
+for child in model.features.children():
+    if ct < 17:
+        # print(child._get_name())
+        for param in child.parameters():
+            param.requires_grad = False
+    ct += 1
 
 criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.9)
@@ -183,6 +191,10 @@ model.train()
 train_loss = 0.0
 best_loss = 10000.
 train_acc = 0.0
+
+train_log = {'loss' : [], 'acc': []}
+val_log = {'loss' : [], 'acc': []}
+
 for epoch in range(NUM_EPOCHS):
     loop = tqdm(train_loader, unit="batch")
     for i, (im_name,x,y) in enumerate(loop):
@@ -211,6 +223,8 @@ for epoch in range(NUM_EPOCHS):
     train_loss = train_loss / (i+1)
     train_acc  = train_acc  / (i+1)
     print(f'On epoch end, train loss: {train_loss}, acc: {train_acc}')
+    train_log['loss'].append(train_loss.cpu().detach())
+    train_log['acc'].append(train_acc)
 
     if train_loss < best_loss:
         print('New Best loss found, saving model')
@@ -240,5 +254,26 @@ for epoch in range(NUM_EPOCHS):
     val_loss = val_loss / (i+1)
     val_acc  = val_acc  / (i+1)
     print(f'Validation loss: {val_loss}, val acc: {val_acc}')
+    val_log['loss'].append(val_loss.cpu().detach())
+    val_log['acc'].append(val_acc)
     
     scheduler.step()
+
+
+#plotar os gráficos
+epochs = range(1, NUM_EPOCHS+1)
+plt.plot(epochs, train_log['loss'], 'y', label='Training loss')
+plt.plot(epochs, val_log['loss'], 'r', label='Validation loss')
+plt.title('Training and validation loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
+
+plt.plot(epochs, train_log['acc'], 'y', label='Training acc')
+plt.plot(epochs, val_log['acc'], 'r', label='Validation acc')
+plt.title('Training and validation accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.show()
