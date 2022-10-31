@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import torch.optim as optim
 
@@ -17,16 +16,10 @@ from PIL import Image
 import scipy
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+from model import Model, GAP
+from customdatasetclassification import CustomDatasetClassification
+from params import *
 
-
-IMAGE_DIR = 'cell_images/'
-IMAGE_SIZE = 224
-
-LEARNING_RATE = 1e-3
-BS = 64
-NUM_WORKERS = 2
-PIN_MEMORY = True
-NUM_EPOCHS = 10
 
 dataset = np.array([])
 label = np.array([])
@@ -36,64 +29,6 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 torch.autograd.set_detect_anomaly(True)
 
 
-class CustomDatasetClassification(Dataset):
-    def __init__(self, image_names, label_names, transform=None):
-        self.images = image_names
-        self.labels = label_names
-         
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.images)
-
-    def __getitem__(self, index):      
-        image = np.array(Image.open(self.images[index]).convert("RGB"))
-        label = self.labels[index]
-
-        if self.transform is not None:
-            augmentations = self.transform(image=image)
-            image = augmentations["image"]
-
-        return self.images[index], image, label
-
-class GAP(nn.Module):
-    def global_average_polling_2d(self, x, keepims=False):
-        x = torch.mean(x.view(x.size(0), x.size(1), -1), dim=2)
-
-        if keepims:
-            x = x.view(x.size(0), x.size(1), 1, 1)
-        return x
-
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x, keepdims=False):
-        return self.global_average_polling_2d(x, keepdims)
-
-class Model(nn.Module):
-    def __init__(self, input_channels=3, n_classes = 2):
-        super().__init__()
-
-        model = torch.hub.load('pytorch/vision:v0.10.0', 'vgg16', pretrained=True)
-
-        model_input = nn.Conv2d(input_channels, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-        classifier_top = nn.Linear(in_features=4096, out_features=n_classes, bias=True)
-
-        model.features[0] = model_input
-        self.features = model.features
-        # self.model.classifier[6] = classifier_top
-        
-        self.classifier = nn.Sequential(
-            GAP(),
-            nn.Linear(in_features=512, out_features=n_classes, bias=True)
-        )
-
-        
-
-    def forward(self, x):
-        x = self.features(x)
-        
-        return self.classifier(x)
 
 
 train_transform = A.Compose(
@@ -226,12 +161,6 @@ for epoch in range(NUM_EPOCHS):
     train_log['loss'].append(train_loss.cpu().detach())
     train_log['acc'].append(train_acc)
 
-    if train_loss < best_loss:
-        print('New Best loss found, saving model')
-        best_loss = train_loss
-        model_path = 'best_model.pth'
-        torch.save(model.state_dict(), model_path)
-
     print('evaluating model:')
     model.eval()
     val_loss = 0.0
@@ -256,9 +185,14 @@ for epoch in range(NUM_EPOCHS):
     print(f'Validation loss: {val_loss}, val acc: {val_acc}')
     val_log['loss'].append(val_loss.cpu().detach())
     val_log['acc'].append(val_acc)
+
+    if val_log['loss'][-1] < best_loss:
+        best_loss = val_log['loss'][-1]
+        print(f'New Best loss found: {best_loss}. Saving model')
+        model_path = 'best_model.pth'
+        torch.save(model.state_dict(), model_path)
     
     scheduler.step()
-
 
 #plotar os gráficos
 epochs = range(1, NUM_EPOCHS+1)
@@ -268,6 +202,7 @@ plt.title('Training and validation loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.legend()
+plt.savefig('loss.png')
 plt.show()
 
 plt.plot(epochs, train_log['acc'], 'y', label='Training acc')
@@ -276,4 +211,5 @@ plt.title('Training and validation accuracy')
 plt.xlabel('Epochs')
 plt.ylabel('Accuracy')
 plt.legend()
+plt.savefig('acc.png')
 plt.show()
