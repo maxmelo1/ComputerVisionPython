@@ -24,7 +24,7 @@ class Model(nn.Module):
         model = torch.hub.load('pytorch/vision:v0.10.0', 'vgg16', pretrained=True)
 
         model_input = nn.Conv2d(input_channels, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-        classifier_top = nn.Linear(in_features=4096, out_features=n_classes, bias=True)
+        # classifier_top = nn.Linear(in_features=4096, out_features=n_classes, bias=True)
 
         model.features[0] = model_input
         self.features = model.features
@@ -32,7 +32,8 @@ class Model(nn.Module):
         
         self.classifier = nn.Sequential(
             GAP(),
-            nn.Linear(in_features=512, out_features=n_classes, bias=True)
+            nn.Linear(in_features=512, out_features=n_classes, bias=True),
+            # nn.Softmax(dim=1),
         )
 
         

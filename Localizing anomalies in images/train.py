@@ -26,7 +26,7 @@ label = np.array([])
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 
 
 
@@ -99,14 +99,16 @@ val_loader = DataLoader(
     shuffle=False
 )
 
-model = Model(n_classes=1)
-# print(model)
+
+model = Model(n_classes=2)
+print(model)
 
 _,x,y = next(iter(train_loader))
 model.to(DEVICE)
 x = x.to(DEVICE)
 
 print( summary(model, (3, 224, 224)) )
+
 
 ct = 0
 for child in model.features.children():
@@ -116,7 +118,7 @@ for child in model.features.children():
             param.requires_grad = False
     ct += 1
 
-criterion = nn.BCEWithLogitsLoss()
+criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.9)
 scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, 0.95)
 scaler = torch.cuda.amp.GradScaler()
@@ -136,14 +138,17 @@ for epoch in range(NUM_EPOCHS):
         loop.set_description(f'Epoch: {epoch}, batch {i}')
         
         x = x.to(DEVICE).float()
-        y = y.to(DEVICE).unsqueeze(1).float()
+        y = y.to(DEVICE).long()#.unsqueeze(0)#.float()
 
         # with torch.cuda.amp.autocast():
         pred = model(x)
+        # pred = torch.argmax(pred, dim=1)
+        
         loss = criterion(pred, y)
         train_loss += loss
-        y_pred = torch.zeros(pred.size(), dtype=torch.float32).to(DEVICE)
-        y_pred[pred>0.5] = 1.0
+        # y_pred = torch.zeros(pred.size(), dtype=torch.float32).to(DEVICE)
+        # y_pred[pred>0.5] = 1.0
+        y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
         acc = torch.sum(y_pred == y).cpu().detach().item() / BS
         train_acc += acc
         
@@ -153,7 +158,8 @@ for epoch in range(NUM_EPOCHS):
         scaler.step(optimizer)
         scaler.update()
 
-        loop.set_postfix(loss=loss.item(), acc=acc)
+        # loop.set_postfix(loss=loss.item(), acc=acc)
+        loop.set_postfix(loss= train_loss.item() / (i+1), acc= train_acc / (i+1))
 
     train_loss = train_loss / (i+1)
     train_acc  = train_acc  / (i+1)
@@ -167,15 +173,16 @@ for epoch in range(NUM_EPOCHS):
     val_acc  = 0.0
     with torch.no_grad():
         for i, (im_name, x, y) in enumerate(val_loader):
-            x = x.to(DEVICE)
-            y = y.to(DEVICE).unsqueeze(1).float()
+            x = x.to(DEVICE).float()
+            y = y.to(DEVICE).long()#.unsqueeze(1).float()
 
             pred = model(x)
             loss = criterion(pred, y)
             val_loss += loss
             
-            y_pred = torch.zeros(pred.size(), dtype=torch.float32).to(DEVICE)
-            y_pred[pred>0.5] = 1
+            # y_pred = torch.zeros(pred.size(), dtype=torch.float32).to(DEVICE)
+            # y_pred[pred>0.5] = 1
+            y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
 
             acc = torch.sum(y_pred == y).cpu().detach().item() / BS
             val_acc += acc
