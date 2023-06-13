@@ -21,6 +21,10 @@ from customdatasetclassification import CustomDatasetClassification
 from params import *
 import argparse
 
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+
+
 
 dataset = np.array([])
 label = np.array([])
@@ -246,10 +250,29 @@ elif args.mode == 'eval':
     model = Model(n_classes=2)
     model.load_state_dict(torch.load(model_path))
     model.to(DEVICE)
-    
+
     print(model)
     print('Model loaded from disk!')
 
     test_loss, test_acc = evaluate(loader=val_loader, model=model, criterion=criterion)
 
     print(f'Val loss: {test_loss}, val acc: {test_acc}')
+
+    val_gt      = []
+    val_preds   = []
+    for _, x, y in val_loader:
+        x = x.to(DEVICE).float()
+        y = y.to(DEVICE).long()
+        pred = model(x)
+        y_pred_GAP = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
+
+        val_gt      += y.cpu().detach().tolist()
+        val_preds   += y_pred_GAP.cpu().detach().tolist()
+
+
+    cm_GAP=confusion_matrix(val_gt, val_preds)  
+    print(cm_GAP)
+    cmatrix = sns.heatmap(cm_GAP, annot=True)
+
+    cmatrix.figure.savefig("output.png")
+    
