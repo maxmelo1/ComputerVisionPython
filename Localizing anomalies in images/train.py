@@ -22,6 +22,8 @@ from params import *
 import argparse
 
 from sklearn.metrics import confusion_matrix
+from sklearn.metrics import roc_auc_score, roc_curve
+
 import seaborn as sns
 
 
@@ -275,4 +277,14 @@ elif args.mode == 'eval':
     cmatrix = sns.heatmap(cm_GAP, annot=True)
 
     cmatrix.figure.savefig("output.png")
+    plt.show()
+
+    roc_auc = roc_auc_score(val_gt, val_preds)
+    fpr, tpr, thresholds = roc_curve(val_gt, val_preds)
+
+    plt.plot(fpr,tpr)
+    plt.savefig('roc_curve.png')
+    plt.show()
+
+    print(roc_auc)
     
