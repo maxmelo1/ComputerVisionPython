@@ -27,7 +27,6 @@ from sklearn.metrics import roc_auc_score, roc_curve
 import seaborn as sns
 
 
-
 dataset = np.array([])
 label = np.array([])
 
@@ -38,8 +37,11 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 parser = argparse.ArgumentParser('GAP example')
 
 parser.add_argument('--mode', default='train', choices=['train', 'eval'])
+parser.add_argument('--image_dir', default='cell_images/')
 
 args = parser.parse_args()
+
+IMAGE_DIR = args.image_dir
 
 train_transform = A.Compose(
     [
