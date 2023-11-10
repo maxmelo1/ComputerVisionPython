@@ -32,7 +32,7 @@ class Model(nn.Module):
         
         self.classifier = nn.Sequential(
             GAP(),
-            nn.Linear(in_features=512, out_features=n_classes, bias=True),
+            #nn.Linear(in_features=512, out_features=n_classes, bias=True),
             # nn.Softmax(dim=1),
         )
 

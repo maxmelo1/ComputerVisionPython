@@ -38,10 +38,18 @@ parser = argparse.ArgumentParser('GAP example')
 
 parser.add_argument('--mode', default='train', choices=['train', 'eval'])
 parser.add_argument('--image_dir', default='cell_images/')
+parser.add_argument('--num_epochs', default=10)
+parser.add_argument('--batch_size', default=32)
+parser.add_argument('--image_size', default=224)
+parser.add_argument('--learning_rate', default=1e-3)
 
 args = parser.parse_args()
 
-IMAGE_DIR = args.image_dir
+IMAGE_DIR       = args.image_dir
+NUM_EPOCHS      = args.num_epochs
+BS              = args.batch_size
+IMAGE_SIZE      = args.image_size
+LEARNING_RATE   = args.learning_rate
 
 train_transform = A.Compose(
     [
@@ -284,6 +292,7 @@ elif args.mode == 'eval':
     roc_auc = roc_auc_score(val_gt, val_preds)
     fpr, tpr, thresholds = roc_curve(val_gt, val_preds)
 
+    fig = plt.figure() 
     plt.plot(fpr,tpr)
     plt.savefig('roc_curve.png')
     plt.show()
