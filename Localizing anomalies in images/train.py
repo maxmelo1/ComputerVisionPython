@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch.optim as optim
 
+import torchvision
+
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from torchsummary import summary
@@ -16,7 +18,7 @@ from PIL import Image
 import scipy
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-from model import Model, GAP
+from model import Model, CAM
 from customdatasetclassification import CustomDatasetClassification
 from params import *
 import argparse
@@ -34,6 +36,13 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # torch.autograd.set_detect_anomaly(True)
 
+def str2bool(key):
+    if isinstance(key, bool):
+        return key
+    if key.lower() in ['true', 't', 'v']:
+        return True
+    return False
+
 parser = argparse.ArgumentParser('GAP example')
 
 parser.add_argument('--mode', default='train', choices=['train', 'eval'])
@@ -42,6 +51,7 @@ parser.add_argument('--num_epochs', default=10)
 parser.add_argument('--batch_size', default=32)
 parser.add_argument('--image_size', default=224)
 parser.add_argument('--learning_rate', default=1e-3)
+parser.add_argument('--visualize', default=False, type=str2bool)
 
 args = parser.parse_args()
 
@@ -125,8 +135,8 @@ def evaluate(loader, model, criterion):
     sum_acc  = 0.0
     with torch.no_grad():
         for i, (im_name, x, y) in enumerate(loader):
-            x = x.to(DEVICE).float()
-            y = y.to(DEVICE).long()#.unsqueeze(1).float()
+            x = x.to(DEVICE)#.float()
+            y = y.to(DEVICE)#.unsqueeze(1)#.float()
 
             pred = model(x)
             loss = criterion(pred, y)
@@ -135,8 +145,10 @@ def evaluate(loader, model, criterion):
             # y_pred = torch.zeros(pred.size(), dtype=torch.float32).to(DEVICE)
             # y_pred[pred>0.5] = 1
             y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
+            gt     = torch.argmax(y, dim=1).long()
+            # y_pred = (nn.Sigmoid()(pred)> 0.5).float()
 
-            acc = torch.sum(y_pred == y).cpu().detach().item() / BS
+            acc = torch.sum(y_pred == gt).cpu().detach().item() / BS
             sum_acc += acc
 
     sum_loss = sum_loss / (i+1)
@@ -147,6 +159,7 @@ def evaluate(loader, model, criterion):
 
 
 
+# criterion = nn.BCEWithLogitsLoss()
 criterion = nn.CrossEntropyLoss()
 
 scaler = torch.cuda.amp.GradScaler()
@@ -180,7 +193,7 @@ if args.mode == 'train':
     model.to(DEVICE)
     x = x.to(DEVICE)
 
-    print( summary(model, (3, 224, 224)) )
+    summary(model, (3, 224, 224))
 
     model.to(DEVICE)
     model.train()
@@ -189,19 +202,28 @@ if args.mode == 'train':
         for i, (im_name,x,y) in enumerate(loop):
             loop.set_description(f'Epoch: {epoch}, batch {i}')
 
-            x = x.to(DEVICE).float()
-            y = y.to(DEVICE).long()#.unsqueeze(0)#.float()
+            x = x.to(DEVICE)#.float()
+            y = y.to(DEVICE)#.unsqueeze(-1)#.long()#.unsqueeze(0)#.float()
+
 
             # with torch.cuda.amp.autocast():
             pred = model(x)
             # pred = torch.argmax(pred, dim=1)
+
+            # print(pred.type(), y.type())
+            # print(pred.size())
+            # print(y.size())
+            # input()
 
             loss = criterion(pred, y)
             train_loss += loss
             # y_pred = torch.zeros(pred.size(), dtype=torch.float32).to(DEVICE)
             # y_pred[pred>0.5] = 1.0
             y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
-            acc = torch.sum(y_pred == y).cpu().detach().item() / BS
+            gt = torch.argmax(y, dim=1).long()
+
+            # y_pred = (nn.Sigmoid()(pred)> 0.5).float()
+            acc = torch.sum(y_pred == gt).cpu().detach().item() / BS
             train_acc += acc
 
 
@@ -263,8 +285,15 @@ elif args.mode == 'eval':
     model.load_state_dict(torch.load(model_path))
     model.to(DEVICE)
 
+    base_model = nn.Sequential(*list(model.children())[:-1][0][:-2])
+    base_model.to(DEVICE)
+
+    
     print(model)
-    print('Model loaded from disk!')
+    summary(model, (3, 224, 224))
+    print('Model successfully loaded from disk!')
+
+
 
     test_loss, test_acc = evaluate(loader=val_loader, model=model, criterion=criterion)
 
@@ -276,13 +305,59 @@ elif args.mode == 'eval':
         x = x.to(DEVICE).float()
         y = y.to(DEVICE).long()
         pred = model(x)
-        y_pred_GAP = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
+        y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
+        # y_pred = (nn.Sigmoid()(pred)> 0.5).float()
 
+        probs = F.softmax(pred, dim=1).data.squeeze()
+        
+        # probs, idx = h_x.sort(0, True)
+        idx = torch.argmax(probs, dim=1)
+        # print('-->', idx)
+
+        probs = probs.detach().cpu().numpy()
+        idx = idx.cpu().numpy()
+
+        params = list(model.parameters())
+        weight = np.squeeze(params[-1].data.cpu().numpy())
+
+        features_blobs = base_model(x)
+        features_blobs1 = features_blobs.cpu().detach().numpy()
+
+        CAMs = CAM(features_blobs1, weight, [idx[0]], size=(IMAGE_SIZE, IMAGE_SIZE))[0]
+
+        # print(np.shape(CAMs), np.shape(x))
+
+        if not os.path.exists(os.path.join('./results/CAM/')):
+            os.makedirs(os.path.join('./results/CAM/'), exist_ok=True)
+
+        for i, (img, cam) in enumerate(zip(x, CAMs)):
+            heatmap = cv2.applyColorMap(cv2.resize(cam,(IMAGE_SIZE, IMAGE_SIZE)), cv2.COLORMAP_JET)
+            img = img.permute(1,2,0).detach().cpu().numpy()
+            result = heatmap * 0.5 + img * 0.5
+
+            # plt.imshow(result[..., ::-1])
+            # plt.show()
+
+            cv2.imwrite(os.path.join('./results/CAM/', f'img_{i}.png' ), img)
+            cv2.imwrite(os.path.join('./results/CAM/', f'cam_{i}.png' ), result)
+
+
+        # print(y)
         val_gt      += y.cpu().detach().tolist()
-        val_preds   += y_pred_GAP.cpu().detach().tolist()
+        val_preds   += y_pred.cpu().detach().tolist()
 
+        if args.visualize == True and sum(y) > 0:
+            for id in y:
+                if id == 1:
+                    last_layer_weights = list(model.parameters())[-1][0]#.weight_v()[0] 
+                    print(last_layer_weights.size())
+                    #input()
 
-    cm_GAP=confusion_matrix(val_gt, val_preds)  
+    val_gt = torch.argmax(torch.as_tensor(val_gt), dim=1).tolist()
+    
+    #print(val_preds)
+
+    cm_GAP=confusion_matrix(val_gt, val_preds)
     print(cm_GAP)
     cmatrix = sns.heatmap(cm_GAP, annot=True)
 
