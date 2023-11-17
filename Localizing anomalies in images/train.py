@@ -19,7 +19,7 @@ import scipy
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from model import Model, CAM
-from customdatasetclassification import CustomDatasetClassification
+from customdatasetclassification import CustomDatasetClassification, inv_z_score
 from params import *
 import argparse
 
@@ -27,6 +27,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import roc_auc_score, roc_curve
 
 import seaborn as sns
+import shutil
 
 
 dataset = np.array([])
@@ -61,6 +62,10 @@ BS              = args.batch_size
 IMAGE_SIZE      = args.image_size
 LEARNING_RATE   = args.learning_rate
 
+
+mean    = np.array([0.52868627, 0.4217098 , 0.44797647])
+std     = np.array([0.34581961, 0.27895686, 0.29270588])
+
 train_transform = A.Compose(
     [
         A.Resize(height=IMAGE_SIZE, width=IMAGE_SIZE),
@@ -68,8 +73,8 @@ train_transform = A.Compose(
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.1),
         A.Normalize(
-            mean=[0.0, 0.0, 0.0],
-            std=[1.0, 1.0, 1.0],
+            mean=mean,
+            std=std,
             max_pixel_value=255.0,
         ),
         ToTensorV2(),
@@ -80,26 +85,29 @@ val_transform = A.Compose(
     [
         A.Resize(height=IMAGE_SIZE, width=IMAGE_SIZE),
         A.Normalize(
-            mean=[0.0, 0.0, 0.0],
-            std=[1.0, 1.0, 1.0],
+            mean=mean,
+            std=std,
             max_pixel_value=255.0,
         ),
         ToTensorV2(),
     ],
 )
 
-parasitized_images = [IMAGE_DIR + 'Parasitized/'+el for el in os.listdir(IMAGE_DIR + 'Parasitized/') if '.png' in el]
-l = np.ones(( len(parasitized_images)))
-dataset = np.concatenate((dataset, parasitized_images))
-label = np.concatenate((label, l))
 
-uninfected_images = [IMAGE_DIR + 'Uninfected/'+el for el in os.listdir(IMAGE_DIR + 'Uninfected/') if '.png' in el]
-l = np.zeros(( len(uninfected_images)))
-dataset = np.concatenate((dataset, uninfected_images))
-label = np.concatenate((label, l))
+with open('./data/train.txt', 'r') as f:
+    X_train = np.array(f.read().splitlines())
+with open('./data/train_labels.txt', 'r') as f:
+    y_train = np.array(f.read().splitlines())
+
+with open('./data/val.txt', 'r') as f:
+    X_test = np.array(f.read().splitlines())
+with open('./data/val_labels.txt', 'r') as f:
+    y_test = np.array(f.read().splitlines())
 
 
-X_train, X_test, y_train, y_test = train_test_split(dataset, label, test_size = 0.20, random_state = 0)
+
+
+# X_train, X_test, y_train, y_test = train_test_split(dataset, label, test_size = 0.20, random_state = 0)
 
 
 train_ds = CustomDatasetClassification(
@@ -128,6 +136,7 @@ val_loader = DataLoader(
     pin_memory=PIN_MEMORY,
     shuffle=False
 )
+
 
 def evaluate(loader, model, criterion):
     model.eval()
@@ -308,50 +317,52 @@ elif args.mode == 'eval':
         y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
         # y_pred = (nn.Sigmoid()(pred)> 0.5).float()
 
-        probs = F.softmax(pred, dim=1).data.squeeze()
-        
-        # probs, idx = h_x.sort(0, True)
-        idx = torch.argmax(probs, dim=1)
-        # print('-->', idx)
+        if args.visualize == True and sum(torch.argmax(y, dim=1)) > 0:
+            
 
-        probs = probs.detach().cpu().numpy()
-        idx = idx.cpu().numpy()
+            probs = F.softmax(pred, dim=1).data.squeeze()
+            
+            # probs, idx = h_x.sort(0, True)
+            idx = torch.argmax(probs, dim=1)
+            # print('-->', idx)
 
-        params = list(model.parameters())
-        weight = np.squeeze(params[-1].data.cpu().numpy())
+            probs = probs.detach().cpu().numpy()
+            idx = idx.cpu().numpy()
 
-        features_blobs = base_model(x)
-        features_blobs1 = features_blobs.cpu().detach().numpy()
+            params = list(model.parameters())
+            weight = np.squeeze(params[-1].data.cpu().numpy())
 
-        CAMs = CAM(features_blobs1, weight, [idx[0]], size=(IMAGE_SIZE, IMAGE_SIZE))[0]
+            features_blobs = base_model(x)
+            features_blobs1 = features_blobs.cpu().detach().numpy()
 
-        # print(np.shape(CAMs), np.shape(x))
+            CAMs = CAM(features_blobs1, weight, [idx[0]], size=(IMAGE_SIZE, IMAGE_SIZE))[0]
 
-        if not os.path.exists(os.path.join('./results/CAM/')):
+            # print(np.shape(CAMs), np.shape(x))
+
+            if os.path.exists(os.path.join('./results/CAM/')):
+                shutil.rmtree('./results/CAM/')
             os.makedirs(os.path.join('./results/CAM/'), exist_ok=True)
 
-        for i, (img, cam) in enumerate(zip(x, CAMs)):
-            heatmap = cv2.applyColorMap(cv2.resize(cam,(IMAGE_SIZE, IMAGE_SIZE)), cv2.COLORMAP_JET)
-            img = img.permute(1,2,0).detach().cpu().numpy()
-            result = heatmap * 0.5 + img * 0.5
+            print('Generating CAMs...')
 
-            # plt.imshow(result[..., ::-1])
-            # plt.show()
+            for i, (img, cam) in enumerate(zip(x, CAMs)):
+                heatmap = cv2.applyColorMap(cv2.resize(cam,(IMAGE_SIZE, IMAGE_SIZE)), cv2.COLORMAP_JET)
+                img = img.permute(1,2,0).detach().cpu().numpy()
+                img = inv_z_score(img, mean, std )
+                result = heatmap * 0.5 + img * 0.5
 
-            cv2.imwrite(os.path.join('./results/CAM/', f'img_{i}.png' ), img)
-            cv2.imwrite(os.path.join('./results/CAM/', f'cam_{i}.png' ), result)
+                # plt.imshow(result[..., ::-1])
+                # plt.show()
+
+                cv2.imwrite(os.path.join('./results/CAM/', f'img_{i}.png' ), img)
+                cv2.imwrite(os.path.join('./results/CAM/', f'cam_{i}.png' ), result)
 
 
         # print(y)
         val_gt      += y.cpu().detach().tolist()
         val_preds   += y_pred.cpu().detach().tolist()
 
-        if args.visualize == True and sum(y) > 0:
-            for id in y:
-                if id == 1:
-                    last_layer_weights = list(model.parameters())[-1][0]#.weight_v()[0] 
-                    print(last_layer_weights.size())
-                    #input()
+    print('Done!')
 
     val_gt = torch.argmax(torch.as_tensor(val_gt), dim=1).tolist()
     
