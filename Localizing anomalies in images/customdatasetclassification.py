@@ -33,3 +33,15 @@ class CustomDatasetClassification(Dataset):
             image = augmentations["image"]
 
         return self.images[index], image, label
+    
+
+def inv_z_score(img, mean, std):
+    img[..., 0] = (img[..., 0]*std[0]+mean[0])*255 
+    img[..., 1] = (img[..., 1]*std[1]+mean[1])*255 
+    img[..., 2] = (img[..., 2]*std[2]+mean[2])*255 
+
+    return img.astype(np.uint8)
+
+# def inv_z_score(img, mean, std):
+    
+#     return np.array(list( map(lambda x:  inv(x, mean, std), img) ))
