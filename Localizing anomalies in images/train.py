@@ -310,15 +310,26 @@ elif args.mode == 'eval':
 
     val_gt      = []
     val_preds   = []
-    for _, x, y in val_loader:
-        x = x.to(DEVICE).float()
-        y = y.to(DEVICE).long()
-        pred = model(x)
-        y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
-        # y_pred = (nn.Sigmoid()(pred)> 0.5).float()
 
-        if args.visualize == True and sum(torch.argmax(y, dim=1)) > 0:
-            
+
+    if args.visualize == True:
+        if os.path.exists(os.path.join('./results/CAM/')):
+            print('Deleting previous generated CAMs')
+            shutil.rmtree('./results/CAM/')
+            print('Done!')
+
+        os.makedirs(os.path.join('./results/CAM/'), exist_ok=True)
+
+        print('Generating CAMs...')
+        
+        for _, x, y in val_loader:
+            x = x.to(DEVICE).float()
+            y = y.to(DEVICE).long()
+            pred = model(x)
+            y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
+            # y_pred = (nn.Sigmoid()(pred)> 0.5).float()
+
+            # if sum(torch.argmax(y, dim=1)) > 0:                
 
             probs = F.softmax(pred, dim=1).data.squeeze()
             
@@ -339,12 +350,6 @@ elif args.mode == 'eval':
 
             # print(np.shape(CAMs), np.shape(x))
 
-            if os.path.exists(os.path.join('./results/CAM/')):
-                shutil.rmtree('./results/CAM/')
-            os.makedirs(os.path.join('./results/CAM/'), exist_ok=True)
-
-            print('Generating CAMs...')
-
             for i, (img, cam) in enumerate(zip(x, CAMs)):
                 heatmap = cv2.applyColorMap(cv2.resize(cam,(IMAGE_SIZE, IMAGE_SIZE)), cv2.COLORMAP_JET)
                 img = img.permute(1,2,0).detach().cpu().numpy()
@@ -358,9 +363,9 @@ elif args.mode == 'eval':
                 cv2.imwrite(os.path.join('./results/CAM/', f'cam_{i}.png' ), result)
 
 
-        # print(y)
-        val_gt      += y.cpu().detach().tolist()
-        val_preds   += y_pred.cpu().detach().tolist()
+            # print(y)
+            val_gt      += y.cpu().detach().tolist()
+            val_preds   += y_pred.cpu().detach().tolist()
 
     print('Done!')
 
