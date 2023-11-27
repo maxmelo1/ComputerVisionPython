@@ -25,6 +25,17 @@ This project is an adaptation to Pytorch from [Dr. Sreenivas Bhattiprolu (Sreeni
 
 ![Caption for subfigure (b).](results/img_31.png)
 
+## Train and validation
+
+The weights are made available in this repository. To evaluate it, just download it put it in the root folder with name 'best_model.pth' and run the model in inference mode.  
+
+The model can be used as follows:
+
+```python
+CUDA_VISIBLE_DEVICES=0 python main.py --image_dir $your_dir --mode [train|eval] --visualize false --num_epochs 10 --batch_size 32 --learning_rate 1e-3 --image_size 224
+```
+
+Note that visualize param will allow the last batch images and CAM's to be saved in a file (only in eval mode).
 
 ## Results
 
