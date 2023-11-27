@@ -15,20 +15,20 @@ This project is an adaptation to Pytorch from [Dr. Sreenivas Bhattiprolu (Sreeni
 
 ## Data
 
-- The dataset can be obtained in [National Library of Medicine](https://lhncbc.nlm.nih.gov/LHC-downloads/downloads.html#malaria-datasets). 80%|20% was the policy for the train/validation splits creation. There are two classes: infected and uninfected. A sample of both classes are shown below.
+- The dataset consists of cell images infected or not with Malaria. The data can be obtained in [National Library of Medicine](https://lhncbc.nlm.nih.gov/LHC-downloads/downloads.html#malaria-datasets). 80%|20% was the policy for the train/validation splits creation. There are two classes: infected and uninfected. A sample of both classes are shown below.
 
 - Uninfected example.
 
 ![Caption for subfigure (a).](results/img_5.png)
 
-- Infected example.
+- Infected/parasitized example.
 
 ![Caption for subfigure (b).](results/img_31.png)
 
 
 ## Results
 
-The best results achieved 
+The best results achieved by the classifier was:
 validation loss of 0.511 and validation accuracy of 0.860.
 
 ### CAM visualization
