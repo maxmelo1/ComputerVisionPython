@@ -33,10 +33,18 @@ validation loss of 0.511 and validation accuracy of 0.860.
 
 ### CAM visualization
 
-![Caption for subfigure (a).](results/img_14.png)
+![Sample image (a).](results/img_14.png)
 
-![Caption for subfigure (b).](results/cam_14.png)
+![CAM for sample image (a).](results/cam_14.png)
 
-![Caption for subfigure (a).](results/img_31.png)
+![Sample image (b).](results/img_31.png)
 
-![Caption for subfigure (b).](results/cam_31.png)
+![CAM for sample image (b).](results/cam_31.png)
+
+### Loss and quantitative results
+
+![Train/validation Loss.](results/loss.png)
+
+![Train/validation ROC curve.](results/roc_curve.png)
+
+![Train/validation confusion matrix.](results/output.png)
