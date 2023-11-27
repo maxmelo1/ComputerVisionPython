@@ -48,7 +48,7 @@ parser = argparse.ArgumentParser('GAP example')
 
 parser.add_argument('--mode', default='train', choices=['train', 'eval'])
 parser.add_argument('--image_dir', default='cell_images/')
-parser.add_argument('--num_epochs', default=10)
+parser.add_argument('--num_epochs', default=10, type=int)
 parser.add_argument('--batch_size', default=32)
 parser.add_argument('--image_size', default=224)
 parser.add_argument('--learning_rate', default=1e-3)
@@ -320,9 +320,10 @@ elif args.mode == 'eval':
 
         os.makedirs(os.path.join('./results/CAM/'), exist_ok=True)
 
-        print('Generating CAMs...')
+        print(f'{len(val_ds)} validation images. Generating CAMs...')
         
-        for _, x, y in val_loader:
+        #used to save the last batch 
+        for i, (_, x, y) in enumerate(val_loader):
             x = x.to(DEVICE).float()
             y = y.to(DEVICE).long()
             pred = model(x)
@@ -349,8 +350,10 @@ elif args.mode == 'eval':
             CAMs = CAM(features_blobs1, weight, [idx[0]], size=(IMAGE_SIZE, IMAGE_SIZE))[0]
 
             # print(np.shape(CAMs), np.shape(x))
+            if i < len(val_loader):
+               continue
 
-            for i, (img, cam) in enumerate(zip(x, CAMs)):
+            for j, (img, cam) in enumerate(zip(x, CAMs)):
                 heatmap = cv2.applyColorMap(cv2.resize(cam,(IMAGE_SIZE, IMAGE_SIZE)), cv2.COLORMAP_JET)
                 img = img.permute(1,2,0).detach().cpu().numpy()
                 img = inv_z_score(img, mean, std )
