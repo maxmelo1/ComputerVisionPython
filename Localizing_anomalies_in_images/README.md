@@ -59,10 +59,13 @@ The more hot colour in the CAM image, the more probability that the pixels are i
 ### Loss and quantitative results
 
 - Loss:
+
 ![Train/validation Loss.](results/loss.png)
 
 - ROC curve:
+
 ![Train/validation ROC curve.](results/roc_curve.png)
 
 - Confusion matrix:
+
 ![Train/validation confusion matrix.](results/output.png)
