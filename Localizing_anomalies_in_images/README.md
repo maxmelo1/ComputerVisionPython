@@ -13,18 +13,6 @@ This project is an adaptation to Pytorch from [Dr. Sreenivas Bhattiprolu (Sreeni
 - Python 3.9.
 - Torch 2.1.0 with CUDA 12.1.
 
-## Data
-
-- The dataset consists of cell images infected or not with Malaria. The data can be obtained in [National Library of Medicine](https://lhncbc.nlm.nih.gov/LHC-downloads/downloads.html#malaria-datasets). 80%|20% was the policy for the train/validation splits creation. There are two classes: infected and uninfected. A sample of both classes are shown below.
-
-- Uninfected example.
-
-![Caption for subfigure (a).](results/img_5.png)
-
-- Infected/parasitized example.
-
-![Caption for subfigure (b).](results/img_31.png)
-
 ## Train and validation
 
 The weights are made available in this repository. To evaluate it, just download it put it in the root folder with name 'best_model.pth' and run the model in inference mode.  
@@ -37,12 +25,28 @@ CUDA_VISIBLE_DEVICES=0 python main.py --image_dir $your_dir --mode [train|eval] 
 
 Note that visualize param will allow the last batch images and CAM's to be saved in a file (only in eval mode).
 
+## Data
+
+- The dataset consists of cell images infected or not with Malaria. The data can be obtained in [National Library of Medicine](https://lhncbc.nlm.nih.gov/LHC-downloads/downloads.html#malaria-datasets). 80%|20% was the policy for the train/validation splits creation. There are two classes: infected and uninfected. A sample of both classes are shown below.
+
+- Uninfected example.
+
+![Caption for subfigure (a).](results/img_5.png)
+
+- Infected/parasitized example.
+
+![Caption for subfigure (b).](results/img_31.png)
+
+
+
 ## Results
 
 The best results achieved by the classifier was:
 validation loss of 0.511 and validation accuracy of 0.860.
 
 ### CAM visualization
+
+The more hot colour in the CAM image, the more probability that the pixels are in a region of interest (parasitized area) in the model inference. The more cold colour, the more probability that the region is a non infected area.
 
 ![Sample image (a).](results/img_14.png)
 
@@ -54,8 +58,11 @@ validation loss of 0.511 and validation accuracy of 0.860.
 
 ### Loss and quantitative results
 
+- Loss:
 ![Train/validation Loss.](results/loss.png)
 
+- ROC curve:
 ![Train/validation ROC curve.](results/roc_curve.png)
 
+- Confusion matrix:
 ![Train/validation confusion matrix.](results/output.png)
