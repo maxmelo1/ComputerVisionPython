@@ -46,8 +46,9 @@ def str2bool(key):
 
 parser = argparse.ArgumentParser('GAP example')
 
-parser.add_argument('--mode', default='train', choices=['train', 'eval'])
+parser.add_argument('--mode', default='train', choices=['train', 'eval', 'inference'])
 parser.add_argument('--image_dir', default='cell_images/')
+parser.add_argument('--image_path', type=str, help='arg used to inform the image path for inference.')
 parser.add_argument('--num_epochs', default=10, type=int)
 parser.add_argument('--batch_size', default=32)
 parser.add_argument('--image_size', default=224)
@@ -289,7 +290,7 @@ if args.mode == 'train':
     plt.savefig('acc.png')
     plt.show()
 
-elif args.mode == 'eval':
+elif args.mode in ['eval', 'inference']:
     model = Model(n_classes=2)
     model.load_state_dict(torch.load(model_path))
     model.to(DEVICE)
@@ -302,94 +303,133 @@ elif args.mode == 'eval':
     summary(model, (3, 224, 224))
     print('Model successfully loaded from disk!')
 
-
-
-    test_loss, test_acc = evaluate(loader=val_loader, model=model, criterion=criterion)
-
-    print(f'Val loss: {test_loss}, val acc: {test_acc}')
-
-    val_gt      = []
-    val_preds   = []
-
-
-    if args.visualize == True:
-        if os.path.exists(os.path.join('./results/CAM/')):
-            print('Deleting previous generated CAMs')
-            shutil.rmtree('./results/CAM/')
-            print('Done!')
-
-        os.makedirs(os.path.join('./results/CAM/'), exist_ok=True)
-
-        print(f'{len(val_ds)} validation images. Generating CAMs...')
+    if args.mode == 'inference':
         
-        #used to save the last batch 
-        for i, (_, x, y) in enumerate(val_loader):
-            x = x.to(DEVICE).float()
-            y = y.to(DEVICE).long()
-            pred = model(x)
-            y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
-            # y_pred = (nn.Sigmoid()(pred)> 0.5).float()
+        img = val_transform(image=np.array(Image.open(args.image_path).convert("RGB")))['image'].unsqueeze(0).to(DEVICE)
 
-            # if sum(torch.argmax(y, dim=1)) > 0:                
+        pred = model(img)
+        y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
 
-            probs = F.softmax(pred, dim=1).data.squeeze()
+        probs = F.softmax(pred, dim=1)
+                
+        # probs, idx = h_x.sort(0, True)
+        idx = torch.argmax(probs, dim=1)
+        # print('-->', idx)
+
+        probs = probs.detach().cpu().numpy()
+        idx = idx.cpu().numpy()
+
+        params = list(model.parameters())
+        weight = np.squeeze(params[-1].data.cpu().numpy())
+        # probs, idx = h_x.sort(0, True)
+
+        features_blobs = base_model(img)
+        features_blobs1 = features_blobs.cpu().detach().numpy()
+
+        CAMs = CAM(features_blobs1, weight, [idx[0]], size=(IMAGE_SIZE, IMAGE_SIZE))[0]
+        features_blobs = base_model(img)
+        features_blobs1 = features_blobs.cpu().detach().numpy()
+
+        CAMs = CAM(features_blobs1, weight, [idx[0]], size=(IMAGE_SIZE, IMAGE_SIZE))[0]
+        cam = CAMs[0]
+
+        heatmap = cv2.applyColorMap(cv2.resize(cam,(IMAGE_SIZE, IMAGE_SIZE)), cv2.COLORMAP_JET)
+        img = img.squeeze().permute(1,2,0).detach().cpu().numpy()
+        img = inv_z_score(img, mean, std )
+        result = heatmap * 0.5 + img * 0.5
+
+        cls_dict = {0: 'Uninfected', 1: 'Infected'}
+        print(f'Predicted class: {cls_dict[y_pred.item()]}' )
+        
+        cv2.imwrite('inference.png', result)
+
+    elif args.mode == 'eval':
+        test_loss, test_acc = evaluate(loader=val_loader, model=model, criterion=criterion)
+
+        print(f'Val loss: {test_loss}, val acc: {test_acc}')
+
+        val_gt      = []
+        val_preds   = []
+
+
+        if args.visualize == True:
+            if os.path.exists(os.path.join('./results/CAM/')):
+                print('Deleting previous generated CAMs')
+                shutil.rmtree('./results/CAM/')
+                print('Done!')
+
+            os.makedirs(os.path.join('./results/CAM/'), exist_ok=True)
+
+            print(f'{len(val_ds)} validation images. Generating CAMs...')
             
-            # probs, idx = h_x.sort(0, True)
-            idx = torch.argmax(probs, dim=1)
-            # print('-->', idx)
+            #used to save the last batch 
+            for i, (_, x, y) in enumerate(val_loader):
+                x = x.to(DEVICE).float()
+                y = y.to(DEVICE).long()
+                pred = model(x)
+                y_pred = torch.argmax(torch.softmax(pred, dim=1), dim=1).long()
+                # y_pred = (nn.Sigmoid()(pred)> 0.5).float()
 
-            probs = probs.detach().cpu().numpy()
-            idx = idx.cpu().numpy()
+                # if sum(torch.argmax(y, dim=1)) > 0:                
 
-            params = list(model.parameters())
-            weight = np.squeeze(params[-1].data.cpu().numpy())
+                probs = F.softmax(pred, dim=1).data.squeeze()
+                
+                # probs, idx = h_x.sort(0, True)
+                idx = torch.argmax(probs, dim=1)
+                # print('-->', idx)
 
-            features_blobs = base_model(x)
-            features_blobs1 = features_blobs.cpu().detach().numpy()
+                probs = probs.detach().cpu().numpy()
+                idx = idx.cpu().numpy()
 
-            CAMs = CAM(features_blobs1, weight, [idx[0]], size=(IMAGE_SIZE, IMAGE_SIZE))[0]
+                params = list(model.parameters())
+                weight = np.squeeze(params[-1].data.cpu().numpy())
 
-            # print(np.shape(CAMs), np.shape(x))
-            if i < len(val_loader):
-               continue
+                features_blobs = base_model(x)
+                features_blobs1 = features_blobs.cpu().detach().numpy()
 
-            for j, (img, cam) in enumerate(zip(x, CAMs)):
-                heatmap = cv2.applyColorMap(cv2.resize(cam,(IMAGE_SIZE, IMAGE_SIZE)), cv2.COLORMAP_JET)
-                img = img.permute(1,2,0).detach().cpu().numpy()
-                img = inv_z_score(img, mean, std )
-                result = heatmap * 0.5 + img * 0.5
+                CAMs = CAM(features_blobs1, weight, [idx[0]], size=(IMAGE_SIZE, IMAGE_SIZE))[0]
 
-                # plt.imshow(result[..., ::-1])
-                # plt.show()
+                # print(np.shape(CAMs), np.shape(x))
+                if i < len(val_loader)-1:
+                    continue
 
-                cv2.imwrite(os.path.join('./results/CAM/', f'img_{i}.png' ), img)
-                cv2.imwrite(os.path.join('./results/CAM/', f'cam_{i}.png' ), result)
+                for j, (img, cam) in enumerate(zip(x, CAMs)):
+                    heatmap = cv2.applyColorMap(cv2.resize(cam,(IMAGE_SIZE, IMAGE_SIZE)), cv2.COLORMAP_JET)
+                    img = img.permute(1,2,0).detach().cpu().numpy()
+                    img = inv_z_score(img, mean, std )
+                    result = heatmap * 0.5 + img * 0.5
+
+                    # plt.imshow(result[..., ::-1])
+                    # plt.show()
+
+                    cv2.imwrite(os.path.join('./results/CAM/', f'img_{i}.png' ), img)
+                    cv2.imwrite(os.path.join('./results/CAM/', f'cam_{i}.png' ), result)
 
 
-            # print(y)
-            val_gt      += y.cpu().detach().tolist()
-            val_preds   += y_pred.cpu().detach().tolist()
+                val_gt      += y.cpu().detach().tolist()
+                val_preds   += y_pred.cpu().detach().tolist()
+        print(np.shape(val_gt))
+        print('Done!')
 
-    print('Done!')
+        print(np.shape(val_gt))
+        val_gt = torch.argmax(torch.as_tensor(val_gt), dim=1).tolist()
+        
+        #print(val_preds)
 
-    val_gt = torch.argmax(torch.as_tensor(val_gt), dim=1).tolist()
-    
-    #print(val_preds)
+        cm_GAP=confusion_matrix(val_gt, val_preds)
+        print(cm_GAP)
+        cmatrix = sns.heatmap(cm_GAP, annot=True)
 
-    cm_GAP=confusion_matrix(val_gt, val_preds)
-    print(cm_GAP)
-    cmatrix = sns.heatmap(cm_GAP, annot=True)
+        cmatrix.figure.savefig("output.png")
+        plt.show()
 
-    cmatrix.figure.savefig("output.png")
-    plt.show()
+        roc_auc = roc_auc_score(val_gt, val_preds)
+        fpr, tpr, thresholds = roc_curve(val_gt, val_preds)
 
-    roc_auc = roc_auc_score(val_gt, val_preds)
-    fpr, tpr, thresholds = roc_curve(val_gt, val_preds)
+        fig = plt.figure() 
+        plt.plot(fpr,tpr)
+        plt.savefig('roc_curve.png')
+        plt.show()
 
-    fig = plt.figure() 
-    plt.plot(fpr,tpr)
-    plt.savefig('roc_curve.png')
-    plt.show()
-
-    print(roc_auc)
+        print(roc_auc)
     
