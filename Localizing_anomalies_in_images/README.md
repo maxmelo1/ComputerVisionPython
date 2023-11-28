@@ -20,10 +20,15 @@ The weights are made available in this repository. To evaluate it, just download
 The model can be used as follows:
 
 ```python
-CUDA_VISIBLE_DEVICES=0 python main.py --image_dir $your_dir --mode [train|eval] --visualize false --num_epochs 10 --batch_size 32 --learning_rate 1e-3 --image_size 224
+CUDA_VISIBLE_DEVICES=0 python main.py --image_dir $your_dir --mode [train|eval|inference] --visualize false --num_epochs 10 --batch_size 32 --learning_rate 1e-3 --image_size 224 --image_path $image_inference_path
 ```
 
-Note that visualize param will allow the last batch images and CAM's to be saved in a file (only in eval mode).
+Available modes:
+- train: train the model from scratch.
+- eval: evaluate the trained model.
+- inference: single image inference.
+
+Note that visualize param will allow the last batch images and CAM's to be saved in a file (only in eval mode). The param image_path is used only with inference mode.
 
 ## Data
 
