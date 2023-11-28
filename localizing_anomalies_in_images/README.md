@@ -6,7 +6,7 @@ A simple VGG-16 is used as a CNN classification model. The model output classifi
 
 ## Source
 
-This project is an adaptation to Pytorch from [Dr. Sreenivas Bhattiprolu (Sreeni) GAP example](https://github.com/bnsreenu/python_for_microscopists/blob/master/261_global_average_pooling/261_global_average_pooling.py) and his [Youtube explanation video](https://www.youtube.com/watch?v=gNRVTCf6lvY).
+This project is an adaptation to Pytorch from [Dr. Sreenivas Bhattiprolu (Sreeni) GAP example](https://github.com/bnsreenu/python_for_microscopists/blob/master/261_global_average_pooling/261_global_average_pooling.py) and his [Youtube explanation video](https://www.youtube.com/watch?v=gNRVTCf6lvY). The CAM version used in this code is based on the post: [Medium - Implementation of Class Activation Map (CAM) with PyTorch](https://medium.com/intelligentmachines/implementation-of-class-activation-map-cam-with-pytorch-c32f7e414923).
 
 ## Requirements
 
