@@ -12,20 +12,11 @@ import torch.nn.functional as F
 from torchvision import models
 import torch.utils.model_zoo as model_zoo
 
-from .arch_resnet import resnet
-from .arch_resnest import resnest
+from . import resnet
 from .abc_modules import ABC_Model
 
-from .deeplab_utils import ASPP, Decoder
-from .aff_utils import PathIndex
-from .puzzle_utils import tile_features, merge_features
 
-from tools.ai.torch_utils import resize_for_tensors
 
-#######################################################################
-# Normalization
-#######################################################################
-from .sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
 
 class FixedBatchNorm(nn.BatchNorm2d):
     def forward(self, x):
