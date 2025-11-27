@@ -70,22 +70,36 @@ class Classifier(Backbone):
         super().__init__(model_name, num_classes, mode)
         
         self.classifier = nn.Conv2d(2048, num_classes, 1, bias=False)
+
+        self.upsample = nn.Sequential(
+            nn.ConvTranspose2d(2048, 512, kernel_size=4, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+            nn.Conv2d(128, num_classes, kernel_size=1)  # Final 1x1 conv to get class logits
+        )
+
         self.num_classes = num_classes
 
-        self.initialize([self.classifier])
+        self.initialize([self.classifier, *self.upsample.modules()])
     
     def forward(self, x, with_cam=False):
         x = self.stage1(x)
         x = self.stage2(x)
         x = self.stage3(x)
         x = self.stage4(x)
-        x = self.stage5(x)
+        x = self.stage5(x)   # [N, 2048, H/32, W/32]
         
         if with_cam:
             features = self.classifier(x)
             logits = self.global_average_pooling_2d(features)
             return logits, features
         else:
-            x = self.global_average_pooling_2d(x, keepdims=True) 
-            logits = self.classifier(x).view(-1, self.num_classes)
+            logits = self.upsample(x)  # [N, num_classes, H, W]
             return logits
